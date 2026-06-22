@@ -10,6 +10,13 @@ const reminderEmailTo = process.env.REMINDER_EMAIL_TO;
 const reminderEmailFrom = process.env.REMINDER_EMAIL_FROM || "VHD-BOUAKE <onboarding@resend.dev>";
 const timezone = "Africa/Abidjan";
 
+function getReminderRecipients() {
+  return String(reminderEmailTo || "")
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+}
+
 function hasSupabaseConfig() {
   return Boolean(supabaseUrl && supabaseKey);
 }
@@ -121,6 +128,8 @@ function buildEmailText(members) {
 }
 
 async function sendReminderEmail(members) {
+  const recipients = getReminderRecipients();
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -129,7 +138,7 @@ async function sendReminderEmail(members) {
     },
     body: JSON.stringify({
       from: reminderEmailFrom,
-      to: [reminderEmailTo],
+      to: recipients,
       subject: `Rappel anniversaire VHD-BOUAKE - ${members.length} personne(s) demain`,
       text: buildEmailText(members),
     }),
@@ -157,7 +166,7 @@ export async function GET() {
       });
     }
 
-    if (!resendApiKey || !reminderEmailTo) {
+    if (!resendApiKey || !getReminderRecipients().length) {
       return NextResponse.json(
         {
           sent: false,
