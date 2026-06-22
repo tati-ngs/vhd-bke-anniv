@@ -43,13 +43,13 @@ Le fichier `vercel.json` planifie le rappel :
   "crons": [
     {
       "path": "/api/reminders",
-      "schedule": "0 18 * * *"
+      "schedule": "0 15 * * *"
     }
   ]
 }
 ```
 
-Vercel appellera `/api/reminders` tous les jours a 18h UTC, ce qui correspond a 18h a Bouake. Si un anniversaire est prevu le lendemain, un email sera envoye au responsable.
+Vercel appellera `/api/reminders` tous les jours a 15h UTC, ce qui correspond a 15h a Bouake. Si un anniversaire est prevu le lendemain, un email sera envoye au responsable.
 
 ## Tester le rappel
 
