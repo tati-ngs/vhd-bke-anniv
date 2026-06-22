@@ -1,0 +1,428 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+const monthNames = [
+  "janvier",
+  "fevrier",
+  "mars",
+  "avril",
+  "mai",
+  "juin",
+  "juillet",
+  "aout",
+  "septembre",
+  "octobre",
+  "novembre",
+  "decembre",
+];
+
+function parseBirthday(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return { year, month, day };
+}
+
+function todayOnly() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function birthdayDateForYear(member, year) {
+  const { month, day } = parseBirthday(member.birthday);
+  return new Date(year, month - 1, day);
+}
+
+function daysUntil(member) {
+  const today = todayOnly();
+  let nextBirthday = birthdayDateForYear(member, today.getFullYear());
+
+  if (nextBirthday < today) {
+    nextBirthday = birthdayDateForYear(member, today.getFullYear() + 1);
+  }
+
+  return Math.round((nextBirthday.getTime() - today.getTime()) / 86400000);
+}
+
+function formatBirthday(member) {
+  const { day, month } = parseBirthday(member.birthday);
+  return `${day} ${monthNames[month - 1]}`;
+}
+
+function nextAge(member) {
+  const { year } = parseBirthday(member.birthday);
+  const today = todayOnly();
+  const nextYear =
+    birthdayDateForYear(member, today.getFullYear()) < today
+      ? today.getFullYear() + 1
+      : today.getFullYear();
+
+  return nextYear - year;
+}
+
+function buildReminderMessage(tomorrowMembers) {
+  if (!tomorrowMembers.length) {
+    return "Bonjour famille, aucun anniversaire n'est prevu demain dans notre liste.";
+  }
+
+  const names = tomorrowMembers.map((member) => member.name).join(", ");
+  const plural = tomorrowMembers.length > 1;
+
+  return [
+    "Bonjour famille,",
+    "",
+    `Petit rappel : demain, ce sera l'anniversaire de ${names}.`,
+    `Pensons a ${plural ? "leur" : "lui"} souhaiter un joyeux anniversaire dans le groupe.`,
+    "",
+    "Que Dieu benisse abondamment chaque personne que nous celebrons.",
+  ].join("\n");
+}
+
+function escapeCsvValue(value) {
+  const text = String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function buildMembersCsv(members) {
+  const headers = [
+    "Nom",
+    "Date anniversaire",
+    "Telephone WhatsApp",
+    "Service ou note",
+    "Prochain rappel",
+    "Jours restants",
+  ];
+
+  const rows = members.map((member) => [
+    member.name,
+    formatBirthday(member),
+    member.phone,
+    member.service || "",
+    daysUntil(member) === 0
+      ? "Aujourd'hui"
+      : daysUntil(member) === 1
+        ? "Demain"
+        : `Dans ${daysUntil(member)} jours`,
+    daysUntil(member),
+  ]);
+
+  return [headers, ...rows]
+    .map((row) => row.map(escapeCsvValue).join(";"))
+    .join("\n");
+}
+
+export default function Home() {
+  const [members, setMembers] = useState([]);
+  const [name, setName] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [phone, setPhone] = useState("");
+  const [service, setService] = useState("");
+  const [notice, setNotice] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [shareLink, setShareLink] = useState("/inscription");
+
+  useEffect(() => {
+    loadMembers();
+    setShareLink(`${window.location.origin}/inscription`);
+  }, []);
+
+  const sortedMembers = useMemo(
+    () => [...members].sort((a, b) => daysUntil(a) - daysUntil(b)),
+    [members],
+  );
+
+  const todayMembers = useMemo(
+    () => sortedMembers.filter((member) => daysUntil(member) === 0),
+    [sortedMembers],
+  );
+
+  const tomorrowMembers = useMemo(
+    () => sortedMembers.filter((member) => daysUntil(member) === 1),
+    [sortedMembers],
+  );
+
+  const weekMembers = useMemo(
+    () => sortedMembers.filter((member) => daysUntil(member) <= 7),
+    [sortedMembers],
+  );
+
+  const reminderMessage = buildReminderMessage(tomorrowMembers);
+  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(reminderMessage)}`;
+
+  async function loadMembers() {
+    setIsLoading(true);
+    const response = await fetch("/api/members", { cache: "no-store" });
+    const data = await response.json();
+    setMembers(data.members || []);
+    setIsLoading(false);
+  }
+
+  function resetForm() {
+    setName("");
+    setBirthday("");
+    setPhone("");
+    setService("");
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+
+    const response = await fetch("/api/members", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: name.trim(),
+        birthday,
+        phone: phone.trim(),
+        service: service.trim(),
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      setNotice(data.error || "Inscription impossible pour le moment.");
+      return;
+    }
+
+    setMembers(data.members || []);
+    resetForm();
+    setNotice(`${data.member.name} a ete ajoute a la liste.`);
+  }
+
+  async function copyReminder() {
+    await navigator.clipboard.writeText(reminderMessage);
+    setNotice("Message de rappel copie. Tu peux le coller dans WhatsApp.");
+  }
+
+  async function copyShareLink() {
+    await navigator.clipboard.writeText(shareLink);
+    setNotice("Lien d'inscription copie. Tu peux le partager dans le groupe.");
+  }
+
+  async function removeMember(id) {
+    const response = await fetch(`/api/members?id=${id}`, {
+      method: "DELETE",
+    });
+    const data = await response.json();
+    setMembers(data.members || []);
+    setNotice("Membre retire de la liste.");
+  }
+
+  function exportMembers() {
+    if (!sortedMembers.length) {
+      setNotice("Aucune liste a exporter pour le moment.");
+      return;
+    }
+
+    const csv = buildMembersCsv(sortedMembers);
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const today = new Date().toISOString().slice(0, 10);
+
+    link.href = url;
+    link.download = `anniversaires-vhd-bouake-${today}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setNotice("Liste exportee en CSV.");
+  }
+
+  return (
+    <main className="page">
+      <section className="hero">
+        <div className="heroText">
+          <p className="eyebrow">VHD-BOUAKE</p>
+          <h1>Ne plus oublier les anniversaires</h1>
+          <p>
+            Partage le lien d'inscription, les membres remplissent le formulaire
+            depuis leur telephone, et la veille l'app prepare le rappel WhatsApp.
+          </p>
+        </div>
+
+        <div className="heroPanel" aria-label="Rappel de demain">
+          <span>Rappel de demain</span>
+          <strong>{tomorrowMembers.length}</strong>
+          <p>
+            {tomorrowMembers.length
+              ? tomorrowMembers.map((member) => member.name).join(", ")
+              : "Aucun anniversaire prevu demain"}
+          </p>
+        </div>
+      </section>
+
+      <section className="stats" aria-label="Resume">
+        <div>
+          <span>Membres inscrits</span>
+          <strong>{members.length}</strong>
+        </div>
+        <div>
+          <span>Aujourd'hui</span>
+          <strong>{todayMembers.length}</strong>
+        </div>
+        <div>
+          <span>Cette semaine</span>
+          <strong>{weekMembers.length}</strong>
+        </div>
+      </section>
+
+      <section className="workspace">
+        <form className="panel formPanel" onSubmit={handleSubmit}>
+          <div>
+            <p className="sectionLabel">Inscription</p>
+            <h2>Ajouter un membre</h2>
+          </div>
+
+          <label>
+            Nom complet
+            <input
+              required
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Ex : Grace M."
+            />
+          </label>
+
+          <label>
+            Date d'anniversaire
+            <input
+              required
+              type="date"
+              value={birthday}
+              onChange={(event) => setBirthday(event.target.value)}
+            />
+          </label>
+
+          <label>
+            Telephone WhatsApp
+            <input
+              required
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="Ex : +225 07 00 00 00 00"
+            />
+          </label>
+
+          <label>
+            Service ou note
+            <input
+              value={service}
+              onChange={(event) => setService(event.target.value)}
+              placeholder="Ex : chorale, accueil..."
+            />
+          </label>
+
+          <button className="primaryButton" type="submit">
+            Enregistrer
+          </button>
+        </form>
+
+        <section className="panel sharePanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="sectionLabel">Lien public</p>
+              <h2>Inscription depuis telephone</h2>
+            </div>
+            <button type="button" onClick={copyShareLink}>
+              Copier
+            </button>
+          </div>
+
+          <div className="shareBox">{shareLink}</div>
+          <a className="whatsappButton" href={`/inscription`}>
+            Voir le formulaire
+          </a>
+          <p className="hint">
+            Quand l'app sera hebergee en ligne, tu partageras ce lien dans le
+            groupe WhatsApp pour que chacun s'inscrive lui-meme.
+          </p>
+        </section>
+      </section>
+
+      <section className="workspace singleWorkspace">
+        <section className="panel reminderPanel">
+          <div className="sectionHeader">
+            <div>
+              <p className="sectionLabel">WhatsApp</p>
+              <h2>Message pret pour la veille</h2>
+            </div>
+            <button type="button" onClick={copyReminder}>
+              Copier
+            </button>
+          </div>
+
+          <pre>{reminderMessage}</pre>
+
+          <a className="whatsappButton" href={whatsappUrl} target="_blank">
+            Ouvrir WhatsApp
+          </a>
+
+          <p className="hint">
+            Pour envoyer automatiquement dans un groupe sans intervention, il
+            faudra une integration WhatsApp Business ou un service externe.
+          </p>
+        </section>
+      </section>
+
+      <section className="panel listPanel">
+        <div className="sectionHeader">
+          <div>
+            <p className="sectionLabel">Suivi</p>
+            <h2>Anniversaires a venir</h2>
+          </div>
+          <button type="button" onClick={exportMembers} disabled={isLoading || !sortedMembers.length}>
+            Exporter la liste
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="empty">
+            <strong>Chargement de la liste...</strong>
+            <span>Un instant.</span>
+          </div>
+        ) : sortedMembers.length === 0 ? (
+          <div className="empty">
+            <strong>Aucun membre inscrit pour le moment.</strong>
+            <span>Partage le lien d'inscription ou ajoute les premiers membres.</span>
+          </div>
+        ) : (
+          <div className="memberGrid">
+            {sortedMembers.map((member) => {
+              const days = daysUntil(member);
+              return (
+                <article className="memberCard" key={member.id}>
+                  <div className="dateBox">
+                    <strong>{parseBirthday(member.birthday).day}</strong>
+                    <span>{monthNames[parseBirthday(member.birthday).month - 1].slice(0, 3)}</span>
+                  </div>
+                  <div>
+                    <h3>{member.name}</h3>
+                    <p>
+                      {formatBirthday(member)} - {nextAge(member)} ans -{" "}
+                      {days === 0
+                        ? "aujourd'hui"
+                        : days === 1
+                          ? "demain"
+                          : `dans ${days} jours`}
+                    </p>
+                    {(member.phone || member.service) && (
+                      <p className="muted">
+                        {[member.phone, member.service].filter(Boolean).join(" - ")}
+                      </p>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => removeMember(member.id)}>
+                    Retirer
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {notice && <div className="toast">{notice}</div>}
+    </main>
+  );
+}
