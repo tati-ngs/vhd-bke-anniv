@@ -184,9 +184,13 @@ export async function GET() {
       email,
       tomorrowMembers,
     });
-  } catch {
+  } catch (error) {
     return NextResponse.json(
-      { sent: false, error: "Impossible d'envoyer le rappel pour le moment." },
+      {
+        sent: false,
+        error: "Impossible d'envoyer le rappel pour le moment.",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
+      },
       { status: 500 },
     );
   }
