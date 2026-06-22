@@ -77,12 +77,16 @@ function buildReminderMessage(tomorrowMembers) {
   ].join("\n");
 }
 
-function escapeCsvValue(value) {
-  const text = String(value ?? "");
-  return `"${text.replaceAll('"', '""')}"`;
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function buildMembersCsv(members) {
+function buildMembersExcelHtml(members) {
   const headers = [
     "Nom",
     "Date anniversaire",
@@ -105,9 +109,41 @@ function buildMembersCsv(members) {
     daysUntil(member),
   ]);
 
-  return [headers, ...rows]
-    .map((row) => row.map(escapeCsvValue).join(";"))
-    .join("\n");
+  const columnWidths = [260, 150, 180, 260, 180, 120];
+  const headerCells = headers
+    .map((header, index) => `<th style="width:${columnWidths[index]}px">${escapeHtml(header)}</th>`)
+    .join("");
+  const bodyRows = rows
+    .map((row) => {
+      const cells = row
+        .map((value, index) => {
+          const numberFormat = index === 2 ? "mso-number-format:'\\@';" : "";
+          return `<td style="${numberFormat}">${escapeHtml(value)}</td>`;
+        })
+        .join("");
+
+      return `<tr>${cells}</tr>`;
+    })
+    .join("");
+
+  return `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12pt; }
+          th { background: #176344; color: #ffffff; font-weight: 700; text-align: left; }
+          th, td { border: 1px solid #b9c0cc; padding: 8px 10px; white-space: nowrap; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <thead><tr>${headerCells}</tr></thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
 }
 
 export default function Home() {
@@ -216,17 +252,17 @@ export default function Home() {
       return;
     }
 
-    const csv = buildMembersCsv(sortedMembers);
-    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const excelHtml = buildMembersExcelHtml(sortedMembers);
+    const blob = new Blob([excelHtml], { type: "application/vnd.ms-excel;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     const today = new Date().toISOString().slice(0, 10);
 
     link.href = url;
-    link.download = `anniversaires-vhd-bouake-${today}.csv`;
+    link.download = `anniversaires-vhd-bouake-${today}.xls`;
     link.click();
     URL.revokeObjectURL(url);
-    setNotice("Liste exportee en CSV.");
+    setNotice("Liste exportee pour Excel.");
   }
 
   return (
@@ -372,7 +408,7 @@ export default function Home() {
             <h2>Anniversaires a venir</h2>
           </div>
           <button type="button" onClick={exportMembers} disabled={isLoading || !sortedMembers.length}>
-            Exporter la liste
+            Exporter Excel
           </button>
         </div>
 
