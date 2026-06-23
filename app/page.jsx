@@ -17,9 +17,9 @@ const monthNames = [
   "decembre",
 ];
 const callStatusLabels = {
-  a_rappeler: "A rappeler",
-  appele: "Appele",
-  inscrit_confirme: "Inscrit confirme",
+  a_rappeler: "À rappeler",
+  appele: "Appelé",
+  inscrit_confirme: "Inscrit confirmé",
 };
 
 function parseBirthday(value) {
@@ -180,6 +180,7 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [shareLink, setShareLink] = useState("/inscription");
+  const [memberToRemove, setMemberToRemove] = useState(null);
 
   useEffect(() => {
     loadMembers();
@@ -267,8 +268,15 @@ export default function Home() {
       method: "DELETE",
     });
     const data = await response.json();
+
+    if (!response.ok) {
+      setNotice(data.error || "Impossible de retirer ce membre pour le moment.");
+      return;
+    }
+
     setMembers(data.members || []);
-    setNotice("Membre retire de la liste.");
+    setMemberToRemove(null);
+    setNotice("Membre retiré de la liste.");
   }
 
   async function updateCallStatus(id, callStatus) {
@@ -287,7 +295,7 @@ export default function Home() {
     }
 
     setMembers(data.members || []);
-    setNotice(`Statut mis a jour : ${callStatusLabels[callStatus]}.`);
+    setNotice(`Statut mis à jour : ${callStatusLabels[callStatus]}.`);
   }
 
   function exportMembers() {
@@ -507,14 +515,14 @@ export default function Home() {
                           value={callStatus}
                           onChange={(event) => updateCallStatus(member.id, event.target.value)}
                         >
-                          <option value="a_rappeler">A rappeler</option>
-                          <option value="appele">Appele</option>
-                          <option value="inscrit_confirme">Inscrit confirme</option>
+                          <option value="a_rappeler">À rappeler</option>
+                          <option value="appele">Appelé</option>
+                          <option value="inscrit_confirme">Inscrit confirmé</option>
                         </select>
                       </label>
                     </div>
                   </div>
-                  <button type="button" onClick={() => removeMember(member.id)}>
+                  <button type="button" onClick={() => setMemberToRemove(member)}>
                     Retirer
                   </button>
                 </article>
@@ -523,6 +531,26 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      {memberToRemove && (
+        <div className="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="removeMemberTitle">
+          <div className="confirmModal">
+            <p className="sectionLabel">Confirmation</p>
+            <h2 id="removeMemberTitle">Retirer ce membre ?</h2>
+            <p>
+              Tu es sur le point de retirer <strong>{memberToRemove.name}</strong> de la liste VHD-BOUAKE.
+            </p>
+            <div className="modalActions">
+              <button type="button" onClick={() => setMemberToRemove(null)}>
+                Annuler
+              </button>
+              <button type="button" className="dangerButton" onClick={() => removeMember(memberToRemove.id)}>
+                Confirmer le retrait
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {notice && <div className="toast">{notice}</div>}
     </main>
