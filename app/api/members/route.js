@@ -7,6 +7,7 @@ const dataFile = path.join(dataDir, "members.json");
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const membersTable = "members";
+const callStatuses = new Set(["a_rappeler", "appele", "inscrit_confirme"]);
 
 function hasSupabaseConfig() {
   return Boolean(supabaseUrl && supabaseKey);
@@ -19,6 +20,7 @@ function toAppMember(member) {
     birthday: member.birthday,
     phone: member.phone,
     service: member.service || "",
+    callStatus: member.call_status || member.callStatus || "a_rappeler",
     createdAt: member.created_at || member.createdAt,
   };
 }
@@ -30,6 +32,7 @@ function toDatabaseMember(member) {
     birthday: member.birthday,
     phone: member.phone,
     service: member.service,
+    call_status: member.callStatus || "a_rappeler",
     created_at: member.createdAt,
   };
 }
@@ -100,6 +103,19 @@ async function removeMember(id) {
   }
 }
 
+async function updateMemberStatus(id, callStatus) {
+  if (hasSupabaseConfig()) {
+    const [updatedMember] = await supabaseRequest(`${membersTable}?id=eq.${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ call_status: callStatus }),
+    });
+
+    return toAppMember(updatedMember);
+  }
+
+  return null;
+}
+
 function cleanText(value) {
   return String(value || "").trim();
 }
@@ -155,6 +171,7 @@ export async function POST(request) {
       birthday,
       phone,
       service,
+      callStatus: "a_rappeler",
       createdAt: new Date().toISOString(),
     };
 
@@ -182,6 +199,44 @@ export async function DELETE(request) {
   } catch {
     return NextResponse.json(
       { error: "Impossible de retirer ce membre pour le moment.", members: [] },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request) {
+  const body = await request.json();
+  const id = cleanText(body.id);
+  const callStatus = cleanText(body.callStatus);
+
+  if (!id || !callStatuses.has(callStatus)) {
+    return NextResponse.json(
+      { error: "Le membre et le statut sont obligatoires." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const members = await readMembers();
+    const existingMember = members.find((member) => member.id === id);
+
+    if (!existingMember) {
+      return NextResponse.json(
+        { error: "Membre introuvable." },
+        { status: 404 },
+      );
+    }
+
+    await updateMemberStatus(id, callStatus);
+    const nextMembers = hasSupabaseConfig()
+      ? await readMembers()
+      : members.map((member) => member.id === id ? { ...member, callStatus } : member);
+
+    await writeMembers(nextMembers);
+    return NextResponse.json({ members: nextMembers });
+  } catch {
+    return NextResponse.json(
+      { error: "Impossible de modifier le statut pour le moment." },
       { status: 500 },
     );
   }

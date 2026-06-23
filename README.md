@@ -19,6 +19,17 @@ Puis ouvrir `http://localhost:3000`.
 - Export CSV de la liste des membres, ouvrable dans Excel.
 - Message WhatsApp pret a copier.
 - Rappel email automatique la veille via `/api/reminders`.
+- Boutons Appeler et WhatsApp pour le call center.
+- Statuts de suivi : `A rappeler`, `Appele`, `Inscrit confirme`.
+
+## Mise a jour Supabase pour le call center
+
+Si la table `members` existe deja, lancer cette requete une seule fois dans Supabase SQL Editor :
+
+```sql
+alter table public.members
+add column if not exists call_status text not null default 'a_rappeler';
+```
 
 ## Variables Vercel
 

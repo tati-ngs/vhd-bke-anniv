@@ -24,12 +24,14 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
 button,
-.whatsappButton {
+.whatsappButton,
+.toolButton {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -49,7 +51,8 @@ button:disabled {
 }
 
 button:hover,
-.whatsappButton:hover {
+.whatsappButton:hover,
+.toolButton:hover {
   border-color: var(--green);
 }
 
@@ -203,8 +206,10 @@ input {
 }
 
 input:focus,
+select:focus,
 button:focus-visible,
-.whatsappButton:focus-visible {
+.whatsappButton:focus-visible,
+.toolButton:focus-visible {
   outline: 3px solid rgba(53, 93, 149, 0.24);
   border-color: var(--blue);
 }
@@ -326,6 +331,60 @@ pre {
   margin-bottom: 0;
 }
 
+.callTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.toolButton {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.whatsappTool {
+  border-color: var(--green);
+  color: var(--green-dark);
+}
+
+.statusSelectLabel {
+  display: grid;
+  gap: 5px;
+  min-width: 170px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.statusSelect {
+  min-height: 38px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0 10px;
+  font-weight: 700;
+}
+
+.status-a_rappeler {
+  border-color: #d79a24;
+  background: #fff8e8;
+}
+
+.status-appele {
+  border-color: #355d95;
+  background: #eef4ff;
+}
+
+.status-inscrit_confirme {
+  border-color: #176344;
+  background: #eef8f1;
+}
+
 .dateBox {
   width: 64px;
   height: 60px;
@@ -412,5 +471,11 @@ pre {
     height: 52px;
     grid-template-columns: auto auto;
     gap: 8px;
+  }
+
+  .callTools,
+  .toolButton,
+  .statusSelectLabel {
+    width: 100%;
   }
 }

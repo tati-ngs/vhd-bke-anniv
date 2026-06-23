@@ -16,6 +16,11 @@ const monthNames = [
   "novembre",
   "decembre",
 ];
+const callStatusLabels = {
+  a_rappeler: "A rappeler",
+  appele: "Appele",
+  inscrit_confirme: "Inscrit confirme",
+};
 
 function parseBirthday(value) {
   const [year, month, day] = value.split("-").map(Number);
@@ -77,6 +82,24 @@ function buildReminderMessage(tomorrowMembers) {
   ].join("\n");
 }
 
+function normalizePhoneNumber(phone) {
+  const cleaned = String(phone || "").replace(/[^\d+]/g, "");
+
+  if (cleaned.startsWith("+")) return cleaned;
+  if (cleaned.startsWith("00")) return `+${cleaned.slice(2)}`;
+  return cleaned;
+}
+
+function getPhoneLinks(phone) {
+  const normalizedPhone = normalizePhoneNumber(phone);
+  const whatsappPhone = normalizedPhone.replace(/\D/g, "");
+
+  return {
+    call: normalizedPhone ? `tel:${normalizedPhone}` : "#",
+    whatsapp: whatsappPhone ? `https://wa.me/${whatsappPhone}` : "#",
+  };
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -92,6 +115,7 @@ function buildMembersExcelHtml(members) {
     "Date anniversaire",
     "Telephone WhatsApp",
     "Service ou note",
+    "Statut appel",
     "Prochain rappel",
     "Jours restants",
   ];
@@ -101,6 +125,7 @@ function buildMembersExcelHtml(members) {
     formatBirthday(member),
     member.phone,
     member.service || "",
+    callStatusLabels[member.callStatus] || callStatusLabels.a_rappeler,
     daysUntil(member) === 0
       ? "Aujourd'hui"
       : daysUntil(member) === 1
@@ -109,7 +134,7 @@ function buildMembersExcelHtml(members) {
     daysUntil(member),
   ]);
 
-  const columnWidths = [260, 150, 180, 260, 180, 120];
+  const columnWidths = [260, 150, 180, 260, 150, 180, 120];
   const headerCells = headers
     .map((header, index) => `<th style="width:${columnWidths[index]}px">${escapeHtml(header)}</th>`)
     .join("");
@@ -244,6 +269,25 @@ export default function Home() {
     const data = await response.json();
     setMembers(data.members || []);
     setNotice("Membre retire de la liste.");
+  }
+
+  async function updateCallStatus(id, callStatus) {
+    const response = await fetch("/api/members", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ id, callStatus }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setNotice(data.error || "Impossible de modifier le statut.");
+      return;
+    }
+
+    setMembers(data.members || []);
+    setNotice(`Statut mis a jour : ${callStatusLabels[callStatus]}.`);
   }
 
   function exportMembers() {
@@ -426,6 +470,8 @@ export default function Home() {
           <div className="memberGrid">
             {sortedMembers.map((member) => {
               const days = daysUntil(member);
+              const phoneLinks = getPhoneLinks(member.phone);
+              const callStatus = member.callStatus || "a_rappeler";
               return (
                 <article className="memberCard" key={member.id}>
                   <div className="dateBox">
@@ -447,6 +493,26 @@ export default function Home() {
                         {[member.phone, member.service].filter(Boolean).join(" - ")}
                       </p>
                     )}
+                    <div className="callTools">
+                      <a className="toolButton" href={phoneLinks.call}>
+                        Appeler
+                      </a>
+                      <a className="toolButton whatsappTool" href={phoneLinks.whatsapp} target="_blank">
+                        WhatsApp
+                      </a>
+                      <label className="statusSelectLabel">
+                        Statut
+                        <select
+                          className={`statusSelect status-${callStatus}`}
+                          value={callStatus}
+                          onChange={(event) => updateCallStatus(member.id, event.target.value)}
+                        >
+                          <option value="a_rappeler">A rappeler</option>
+                          <option value="appele">Appele</option>
+                          <option value="inscrit_confirme">Inscrit confirme</option>
+                        </select>
+                      </label>
+                    </div>
                   </div>
                   <button type="button" onClick={() => removeMember(member.id)}>
                     Retirer

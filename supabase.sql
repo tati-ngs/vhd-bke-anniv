@@ -9,3 +9,6 @@ create table if not exists public.members (
 
 create unique index if not exists members_name_birthday_unique
 on public.members (lower(name), birthday);
+
+alter table public.members
+add column if not exists call_status text not null default 'a_rappeler';
