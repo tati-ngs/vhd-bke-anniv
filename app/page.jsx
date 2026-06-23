@@ -181,6 +181,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [shareLink, setShareLink] = useState("/inscription");
   const [memberToRemove, setMemberToRemove] = useState(null);
+  const [searchName, setSearchName] = useState("");
 
   useEffect(() => {
     loadMembers();
@@ -191,6 +192,14 @@ export default function Home() {
     () => [...members].sort((a, b) => daysUntil(a) - daysUntil(b)),
     [members],
   );
+
+  const displayedMembers = useMemo(() => {
+    const search = searchName.trim().toLowerCase();
+
+    if (!search) return sortedMembers;
+
+    return sortedMembers.filter((member) => member.name.toLowerCase().includes(search));
+  }, [searchName, sortedMembers]);
 
   const todayMembers = useMemo(
     () => sortedMembers.filter((member) => daysUntil(member) === 0),
@@ -464,6 +473,16 @@ export default function Home() {
           </button>
         </div>
 
+        <label className="searchBox">
+          Rechercher par nom
+          <input
+            type="search"
+            value={searchName}
+            onChange={(event) => setSearchName(event.target.value)}
+            placeholder="Ex : Grace, Anita, Kouassi..."
+          />
+        </label>
+
         {isLoading ? (
           <div className="empty">
             <strong>Chargement de la liste...</strong>
@@ -474,9 +493,14 @@ export default function Home() {
             <strong>Aucun membre inscrit pour le moment.</strong>
             <span>Partage le lien d'inscription ou ajoute les premiers membres.</span>
           </div>
+        ) : displayedMembers.length === 0 ? (
+          <div className="empty">
+            <strong>Aucun membre trouve.</strong>
+            <span>Essaie avec une autre partie du nom.</span>
+          </div>
         ) : (
           <div className="memberGrid">
-            {sortedMembers.map((member) => {
+            {displayedMembers.map((member) => {
               const days = daysUntil(member);
               const phoneLinks = getPhoneLinks(member.phone);
               const callStatus = member.callStatus || "a_rappeler";

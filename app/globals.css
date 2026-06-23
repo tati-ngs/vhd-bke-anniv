@@ -310,6 +310,11 @@ pre {
   gap: 10px;
 }
 
+.searchBox {
+  max-width: 440px;
+  margin-bottom: 16px;
+}
+
 .memberCard {
   display: grid;
   grid-template-columns: 66px 1fr auto;

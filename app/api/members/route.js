@@ -120,6 +120,14 @@ function cleanText(value) {
   return String(value || "").trim();
 }
 
+function normalizePhone(value) {
+  const cleaned = cleanText(value).replace(/[^\d+]/g, "");
+
+  if (cleaned.startsWith("+")) return cleaned;
+  if (cleaned.startsWith("00")) return `+${cleaned.slice(2)}`;
+  return cleaned.replace(/\D/g, "");
+}
+
 function isValidBirthday(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || "");
 }
@@ -152,15 +160,14 @@ export async function POST(request) {
 
   try {
     const members = await readMembers();
+    const normalizedPhone = normalizePhone(phone);
     const alreadyExists = members.some(
-      (member) =>
-        member.name.toLowerCase() === name.toLowerCase() &&
-        member.birthday === birthday,
+      (member) => normalizedPhone && normalizePhone(member.phone) === normalizedPhone,
     );
 
     if (alreadyExists) {
       return NextResponse.json(
-        { error: "Cette personne semble deja inscrite." },
+        { error: "Cette personne semble deja inscrite. Si c'est une erreur, contacte le responsable VHD-BOUAKE." },
         { status: 409 },
       );
     }

@@ -21,6 +21,7 @@ Puis ouvrir `http://localhost:3000`.
 - Rappel email automatique la veille via `/api/reminders`.
 - Boutons Appeler et WhatsApp pour le call center.
 - Statuts de suivi : `A rappeler`, `Appele`, `Inscrit confirme`.
+- Protection contre les inscriptions en double par numero WhatsApp.
 
 ## Mise a jour Supabase pour le call center
 
@@ -29,6 +30,17 @@ Si la table `members` existe deja, lancer cette requete une seule fois dans Supa
 ```sql
 alter table public.members
 add column if not exists call_status text not null default 'a_rappeler';
+```
+
+## Mise a jour Supabase pour bloquer les doublons
+
+Pour empecher un meme numero WhatsApp d'etre enregistre plusieurs fois, lancer aussi cette requete une seule fois :
+
+```sql
+drop index if exists public.members_name_birthday_unique;
+
+create unique index if not exists members_phone_unique
+on public.members (regexp_replace(phone, '[^0-9+]', '', 'g'));
 ```
 
 ## Variables Vercel
